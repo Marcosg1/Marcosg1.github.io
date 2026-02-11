@@ -2,11 +2,12 @@ let table;
 let ageCounts = {}; // stores number of passengers by age
 
 function preload() {
-  table = loadTable('../titanic.csv', 'csv', 'header');
+  table = loadTable("../titanic.csv", "csv", "header");
 }
 
 function setup() {
   createCanvas(1000, 600);
+  noLoop(); // draws once, no 60 fps
   textSize(20);
   fill(0);
 
@@ -25,16 +26,22 @@ function setup() {
 function draw() {
   background(240);
   text("P5 Graph", width / 2, 20);
+  
 
   let ages = Object.keys(ageCounts)
-                  .map(a => int(a))
-                  .sort((a, b) => a - b);
+    .map((a) => int(a))
+    .sort((a, b) => a - b);
+
+  console.log("Ages:", ages);
 
   let maxAgeValue = Math.max(...ages);
 
-  let marginLeft = 50;
-  let marginBottom = 50;
-  let marginTop = 50;
+  console.log("Max Age:", maxAgeValue);
+
+  let marginLeft = 70;
+  let marginBottom = 70;
+  let marginTop = 70;
+  let YaxisTicks = 35;
 
   // draws axes
   stroke(0);
@@ -49,30 +56,32 @@ function draw() {
     let count = ageCounts[age];
 
     let x = marginLeft + (age / maxAgeValue) * graphWidth;
-
-    for (let j = 0; j < count; j++) {
-      let y = height - marginBottom - j * 5;
-      fill(90, 130, 180);
-      ellipse(x, y, 4, 4);
-    }
+    let y = height - marginBottom - count * 10;
+    fill(90, 130, 180);
+    ellipse(x, y, 9, 9);
   }
 
   textAlign(CENTER, TOP);
   fill(0);
-  text("Age", marginLeft + graphWidth / 2, height - 20);
+  text("Age", marginLeft + graphWidth / 2, height - 30);
 
   // X-axis bins and labels
-  for (let a = 0; a <= maxAgeValue; a += 5) {
+  for (let a = 5; a <= maxAgeValue; a += 5) {
     let x = marginLeft + (a / maxAgeValue) * graphWidth;
 
     line(x, height - marginBottom, x, height - marginBottom + 5);
     text(a, x, height - marginBottom + 15);
   }
 
+    // Y-axis ticks and numbers
+  for (let b = 5 ; b <= YaxisTicks; b+= 5) {
+    let y = height - marginBottom - (b / YaxisTicks) * (height - marginBottom - marginTop);
+    line(marginLeft - 15, y, marginLeft, y);
+    text(b, marginLeft - 10, y);
+  }
+
   // Y-axis title
   textAlign(CENTER, CENTER);
-  push();
   rotate(-HALF_PI);
   text("Number of Passengers", -height / 2, 20);
-  pop();
 }
