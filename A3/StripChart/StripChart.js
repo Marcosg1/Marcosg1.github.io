@@ -1,4 +1,4 @@
-let ageArr = [];
+let ageClassArr = [];
 
 function preload() {
     table = loadTable("../titanic.csv", "csv", "header");
@@ -15,11 +15,11 @@ function setup() {
         let pclass = table.getString(r, "Pclass");
 
         if (!isNaN(age) && age > 0) {
-            let roundedAgeObj = { age: Math.ceil(age), pclass };
-            ageArr.push(roundedAgeObj);
+            let ageClassObj = { age: Math.ceil(age), pclass };
+            ageClassArr.push(ageClassObj);
         }
     }
-    console.log("ageArr:", ageArr);
+    console.log("ageClassArr:", ageClassArr);
 }
 
 function draw() {
@@ -75,8 +75,8 @@ function draw() {
     text("Strip Chart of Age vs Pclass", width / 2, 40);
 
     // plot points with jitter
-    for (let i = 0; i < ageArr.length; i++) {
-        let ageClass = ageArr[i];
+    for (let i = 0; i < ageClassArr.length; i++) {
+        let ageClass = ageClassArr[i];
 
         // place points on same x for each class
         let x = map(Number(ageClass.pclass), 1, 3, marginLeft + 50, width - marginRight - 50);
