@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>D3 Box Plot</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            .box {
+                fill: steelblue;
+                opacity: 0.6;
+            }
+            .median-line {
+                stroke: white;
+                stroke-width: 2;
+            }
+            .whisker {
+                stroke: #ccc;
+                stroke-width: 2;
+            }
+            .caps {
+                stroke: #ccc;
+                stroke-width: 2;
+            }
+            .axis-x path,
+            .axis-y path {
+                fill:none;
+                stroke: black;
+                shape-rendering: crispEdges;                
+            }
+            .axis-x .tick line,
+            .axis-y .tick line {
+                stroke: #ccc;
+            }
+            .axis text {
+                font-size: 10px;
+            }
+            .tooltip {
+                position: absolute;
+                background: rgba(0,0,0,.5);
+                color: white;
+                padding: 6px 10px;
+                border-radius: 5px;
+                font-size: 13px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s ease;
+            }
+        </style>
+    </head>
+    <body> 
+        <div id="chart-container"></div>
+        <div class="tooltip" id="tooltip"></div>
+
+        <script>
+            d3.csv("../anime.csv").then(function(data) {
+
+                // gets ratings and sorts them in ascending order
+                data.forEach(d => {
+                    d.rating = +d.rating;
+                });
+
+                const ratings = data.map(d => d.rating).sort(d3.ascending);
+
+                // gets info for the box plot
+                const min = d3.min(ratings);
+                const max = d3.max(ratings);
+                const q1 = d3.quantile(ratings, 0.25);
+                const q3 = d3.quantile(ratings, 0.75);
+                const median = d3.quantile(ratings, 0.5);
+
+                const svgWidth = 600;
+                const svgHeight = 400;
+                const margin = { top: 40, right: 20, bottom: 70, left: 100 };
+                const width = svgWidth - margin.left - margin.right;
+                const height = svgHeight - margin.top - margin.bottom;
+
+                const svg = d3.select("#chart-container")
+                    .append("svg")
+                    .attr("width", svgWidth)
+                    .attr("height", svgHeight);
+
+                const chart = svg.append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                // title of the chart
+                svg.append("text")
+                    .attr("x", svgWidth / 2 - 30)
+                    .attr("y", margin.top / 2)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "20px")
+                    .style("fill", "white")
+                    .text("Distribution of Anime Ratings");
+                
+                // label for y axis
+                svg.append("text")
+                    .attr("x", -svgHeight / 2)
+                    .attr("y", margin.left / 2 + 10)
+                    .attr("transform", "rotate(-90)")
+                    .style("font-size", "15px")
+                    .style("fill", "white")
+                    .text("Ratings");
+
+                // y scale
+                const yScale = d3.scaleLinear()
+                    .domain([0, max])
+                    .range([height, 0]);
+
+                // adds y axis to the chart
+                chart.append("g")
+                    .attr("class", "axis axis-y")
+                    .call(d3.axisLeft(yScale));
+
+                const boxWidth = 100;
+                const center = width / 3;
+
+                const tooltip = d3.select("#tooltip");
+
+                // whisker line
+                chart.append("line")
+                    .attr("x1", center)
+                    .attr("x2", center)
+                    .attr("y1", yScale(min))
+                    .attr("y2", yScale(max))
+                    .attr("class", "whisker")
+                    .on("mouseover", (event) => {
+                        tooltip
+                            .html(`<strong>Range</strong><br>Min: ${min}<br>Max: ${max}`)
+                            .style("opacity", 1);
+                    })
+                    .on("mousemove", (event) => {
+                        tooltip
+                            .style("left", (event.pageX + 12) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", () => {
+                        tooltip.style("opacity", 0);
+                    });
+
+                // box (q1 to q3)
+                chart.append("rect")
+                    .attr("x", center - boxWidth / 2)
+                    .attr("y", yScale(q3))
+                    .attr("width", boxWidth)
+                    .attr("height", yScale(q1) - yScale(q3))
+                    .attr("class", "box")
+                    .on("mouseover", (event) => {
+                        tooltip
+                            .html(`<strong>Interquartile Range</strong><br>Q1: ${q1}<br>Q3: ${q3}`)
+                            .style("opacity", 1);
+                    })
+                    .on("mousemove", (event) => {
+                        tooltip
+                            .style("left", (event.pageX + 12) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", () => {
+                        tooltip.style("opacity", 0);
+                    });
+
+                // median line
+                chart.append("line")
+                    .attr("x1", center - boxWidth / 2)
+                    .attr("x2", center + boxWidth / 2)
+                    .attr("y1", yScale(median))
+                    .attr("y2", yScale(median))
+                    .attr("class", "median-line")
+                    .on("mouseover", (event) => {
+                        tooltip
+                            .html(`<strong>Median Rating</strong><br>${median}`)
+                            .style("opacity", 1);
+                    })
+                    .on("mousemove", (event) => {
+                        tooltip
+                            .style("left", (event.pageX + 12) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", () => {
+                        tooltip.style("opacity", 0);
+                    });
+
+                // min cap
+                chart.append("line")
+                    .attr("x1", center - 30)
+                    .attr("x2", center + 30)
+                    .attr("y1", yScale(min))
+                    .attr("y2", yScale(min))
+                    .attr("class", "caps");
+
+                // max cap
+                chart.append("line")
+                    .attr("x1", center - 30)
+                    .attr("x2", center + 30)
+                    .attr("y1", yScale(max))
+                    .attr("y2", yScale(max))
+                    .attr("class", "caps");
+            });
+        </script>
+    </body>
+</html>
