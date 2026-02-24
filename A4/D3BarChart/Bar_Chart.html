@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>D3 Bar Chart</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            .bar {
+                fill: steelblue;
+            }
+            .bar:hover {
+                fill: orange;
+            }
+            .axis-x path,
+            .axis-y path {
+                fill:none;
+                stroke: black;
+                shape-rendering: crispEdges;                
+            }
+            .axis-x .tick line,
+            .axis-y .tick line {
+                stroke: #ccc;
+            }
+            .axis text {
+                font-size: 12px;
+            }
+            .tooltip {
+                position: absolute;
+                background: rgba(0,0,0,.5);
+                color: white;
+                padding: 6px 10px;
+                border-radius: 5px;
+                font-size: 13px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s ease;
+            }
+        </style>
+    </head>
+    <body> 
+        <h1>D3 Bar Chart</h1>
+        <div id="chart-container"></div>
+        <div class="tooltip" id="tooltip"></div>
+
+        <script>
+            d3.csv("../anime.csv").then(function(data) {
+                console.log(data);
+
+            // counts the number of times each type appears in the data
+            const typeCounts = {};
+            data.forEach(d => {
+                d.type = d.type.trim();
+                if (d.type !== "") {
+                    if (typeCounts[d.type]) {
+                        typeCounts[d.type] += 1;
+                    } else {
+                        typeCounts[d.type] = 1;
+                    }
+                }
+            });
+
+            console.log(typeCounts);
+            
+            // converts counts into an array of objects 
+            const typeData = Object.entries(typeCounts).map(([type, count]) => ({
+                type,
+                count
+            }));
+
+            console.log(typeData);
+            
+            const svgWidth = 600;
+            const svgHeight = 400;
+            const margin = { top: 40, right: 20, bottom: 70, left: 100};
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            // Create the SVG container in the chart container div
+            const svg = d3.select("#chart-container")
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            // groups the svg elemnts together and moves them to the right and down by the margin amount
+            const chart = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`)
+
+            // adds a title to the chart
+            svg.append("text")
+                .attr("x", svgWidth / 2 + 50)
+                .attr("y", margin.top - 10)
+                .style("font-size", "20px")
+                .style("fill", "white")
+                .style("text-anchor", "middle")
+                .text("Frequency of Anime by Media Type");
+            
+            // label for x axis
+            svg.append("text")
+                .attr("x", svgWidth / 2 + 40)
+                .attr("y", svgHeight - 10)
+                .style("font-size", "15px")
+                .style("fill", "white")
+                .style("text-anchor", "middle")
+                .text("Media Type");
+
+            // label for y axis
+            svg.append("text")
+                .attr("x", -svgHeight / 2)
+                .attr("y", 20)
+                .attr("transform", "rotate(-90)")
+                .style("font-size", "15px")
+                .style("fill", "white")
+                .text("Frequency");
+            
+            // sclaes x axis with domain (input of labels) and range (pixel width size of the chart)
+            const scaleX = d3.scaleBand()
+                .domain(typeData.map(d => d.type))
+                .range([0, width])
+                .padding(0.1);
+
+            // scales y axis with domain (input of values) and range (pixel height size of the chart), nice just means if max 37 label will be 40 instead of 37
+            const scaleY = d3.scaleLinear()
+                .domain([0, d3.max(typeData, d => d.count)])
+                .nice()
+                .range([height, 0]);
+            
+            // uses class axis' and creates the x axis on at the bottom
+            chart.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleX))
+                .selectAll("text");
+
+            // uses class axis' and creates the y axis on the left with 5 ticks
+            chart.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(scaleY).ticks(5));
+            
+            // reference to the tooltip element
+            const tooltip = d3.select("#tooltip");
+            
+            // creates the bars for the bar chart and adds mouseover, mousemove, and mouseout events for the tooltip
+            chart.selectAll(".bar")
+                .data(typeData)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", d => scaleX(d.type))
+                .attr("y", d => scaleY(d.count))
+                .attr("width", scaleX.bandwidth())
+                .attr("height", d => height - scaleY(d.count))
+                .on("mouseover", (event, d) => {
+                    tooltip
+                        .html(`<strong>${d.type}</strong>: ${d.count}`)
+                        .style("opacity", 1);
+                })
+                .on("mousemove", (event) => {
+                    tooltip
+                        .style("left", (event.pageX + 12) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.style("opacity", 0);
+                });
+            });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,149 @@
+<!-- CHANGE THIS TO GENRE VS COUNT 
+MAKE THE BARCHART TV VS COUNT -->
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>D3 Bar Chart</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            .circle {
+                fill: steelblue;
+            }
+            .circle:hover {
+                fill: orange;
+            }
+            .axis-x path,
+            .axis-y path {
+                fill:none;
+                stroke: black;
+                shape-rendering: crispEdges;                
+            }
+            .axis-x .tick line,
+            .axis-y .tick line {
+                stroke: #ccc;
+            }
+            .axis text {
+                font-size: 12px;
+            }
+            .tooltip {
+                position: absolute;
+                background: rgba(0,0,0,.5);
+                color: white;
+                padding: 6px 10px;
+                border-radius: 5px;
+                font-size: 13px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s ease;
+            }
+        </style>
+    </head>
+    <body> 
+        <div id="chart-container"></div>
+        <div class="tooltip" id="tooltip"></div>
+
+        <script>
+            d3.csv("../anime.csv").then(function(data) {
+                console.log(data);
+
+            // makes sure each value in the data is a number and counts the number of times each genre appears in the data
+            data.forEach(d => {
+                d.rating   = +d.rating;
+                d.members  = +d.members;
+            });
+            
+            const svgWidth = 600;
+            const svgHeight = 400;
+            const margin = { top: 40, right: 20, bottom: 70, left: 100};
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            // Create the SVG container in the chart container div
+            const svg = d3.select("#chart-container")
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            // groups the svg elemnts together and moves them to the right and down by the margin amount
+            const chart = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`)
+
+            //title of the chart
+            svg.append("text")
+                .attr("x", width / 2 - margin.left - 20)
+                .attr("y", margin.top / 2)
+                .style("font-size", "20px")
+                .style("fill", "white")
+                .text("Relationship between Anime Rating and Members");
+
+            // label for the x axis
+            svg.append("text")
+                .attr("x", svgWidth / 2)
+                .attr("y", svgHeight - margin.bottom / 4)
+                .style("font-size", "15px")
+                .style("fill", "white")
+                .text("Rating");
+            
+            // label for the y axis
+            svg.append("text")
+                .attr("x", -svgHeight / 2)
+                .attr("y", margin.left / 4)
+                .attr("transform", "rotate(-90)")
+                .style("font-size", "15px")
+                .style("fill", "white")
+                .text("Members");
+            
+            // sclaes x axis with domain (input of labels) and range (pixel width size of the chart)
+            const scaleX = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.rating)])
+                .range([0, width])
+
+            // scales y axis with domain (input of values) and range (pixel height size of the chart), nice just means if max 37 label will be 40 instead of 37
+            const scaleY = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.members)])
+                .nice()
+                .range([height, 0]);
+            
+            // uses class axis' and creates the x axis on at the bottom
+            chart.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleX));
+
+            // uses class axis' and creates the y axis on the left with 5 ticks
+            chart.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(scaleY).ticks(5));
+            
+            // reference to the tooltip element
+            const tooltip = d3.select("#tooltip");
+            
+            // creates the bars for the bar chart and adds mouseover, mousemove, and mouseout events for the tooltip
+            chart.selectAll(".circle")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("class", "circle")
+                .attr("cx", d => scaleX(d.rating))
+                .attr("cy", d => scaleY(d.members))
+                .attr("r", 2)
+                .on("mouseover", (event, d) => {
+                    tooltip
+                        .html(`<strong>${d.name}</strong>: ${d.members} members`)
+                        .style("opacity", 1);
+                })
+                .on("mousemove", (event) => {
+                    tooltip
+                        .style("left", (event.pageX + 12) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.style("opacity", 0);
+                });
+            });
+        </script>
+    </body>
+</html>
