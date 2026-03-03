@@ -1,0 +1,187 @@
+<!-- To get a C (75):
+
+Implement a bubble chart with color to visualize four dimensions represented using the x-axis, the y-axis, the size of the circle, and the color of the circle.
+The chart must have an x- and a y-axis with axis labels
+The chart must have a descriptive title
+The data must be loaded from a CSV file -->
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>D3 Bubble Chart</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            .axis-x path,
+            .axis-y path {
+                fill:none;
+                stroke: black;
+                shape-rendering: crispEdges;                
+            }
+            .axis-x .tick line,
+            .axis-y .tick line {
+                stroke: #ccc;
+            }
+            .axis text {
+                font-size: 12px;
+            }
+            .tooltip {
+                position: absolute;
+                background: rgba(0,0,0,.5);
+                color: white;
+                padding: 6px 10px;
+                border-radius: 5px;
+                font-size: 13px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s ease;
+            }
+        </style>
+    </head>
+    <body> 
+        <title>D3 Bubble Chart</title>
+        <div id="chart-container"></div>
+        <div class="tooltip" id="tooltip"></div>
+
+        <script>
+            d3.csv("../weather.csv").then(function(data) {
+
+            // only gets selected states data
+            const states = ["California", "New York", "Florida"];
+            data = data.filter(d => states.includes(d["Station.State"]));
+            
+            // makes sure each value in the data is a number 
+            data.forEach(d => {
+                d.MaxTemp = +d["Data.Temperature.Max Temp"];
+                d.MinTemp = +d["Data.Temperature.Min Temp"];
+                d.Precipitation = +d["Data.Precipitation"];
+            });
+
+            console.log(data);
+            console.log("Max of MaxTemp:", d3.max(data, d => d.MaxTemp));
+            console.log("Max of MinTemp:", d3.max(data, d => d.MinTemp));
+            
+            const svgWidth = 1200;
+            const svgHeight = 700;
+            const margin = { top: 40, right: 150, bottom: 70, left: 100};
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            // Create the SVG container in the chart container div
+            const svg = d3.select("#chart-container")
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            // groups the svg elemnts together and moves them to the right and down by the margin amount
+            const chart = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`)
+
+            //title of the chart
+            svg.append("text")
+                .attr("x", width / 2 - margin.left)
+                .attr("y", margin.top / 2)
+                .style("font-size", "20px")
+                .style("fill", "white")
+                .text("Weather Patterns: Temperature, Rainfall, and Wind Speed");
+
+            // label for the x axis
+            svg.append("text")
+                .attr("x", svgWidth / 2 - 50)
+                .attr("y", svgHeight - margin.bottom / 4)
+                .style("font-size", "15px")
+                .style("fill", "white")
+                .text("Maximum Temperature (°F)");
+            
+            // label for the y axis
+            svg.append("text")
+                .attr("x", -svgHeight / 2 - 50)
+                .attr("y", margin.left / 2)
+                .attr("transform", "rotate(-90)")
+                .style("font-size", "15px")
+                .style("fill", "white")
+                .text("Minimum Temperature (°F)");
+            
+            // sclaes x axis with domain (input of labels) and range (pixel width size of the chart)
+            const scaleX = d3.scaleLinear()
+                .domain([d3.min(data, d => d.MaxTemp), d3.max(data, d => d.MaxTemp)])
+                .range([0, width])
+
+            // scales y axis with domain (input of values) and range (pixel height size of the chart), nice just means if max 37 label will be 40 instead of 37
+            const scaleY = d3.scaleLinear()
+                .domain([d3.min(data, d => d.MinTemp), d3.max(data, d => d.MinTemp)])
+                .nice()
+                .range([height, 0]);
+            
+            // creates the colors for the circles
+            const colorScale = d3.scaleOrdinal()
+                .domain(states)
+                .range(d3.schemeCategory10);
+            
+            // creates the scale for the size of the circles with domain (input of values) and range (pixel size of the circles)
+            const radiusScale = d3.scaleSqrt()
+                .domain([0, d3.max(data, d => d.Precipitation)])
+                .range([1.5, 13]);
+            
+            // creates the legend for the chart of states
+            const legend = svg.selectAll(".legend")
+                .data(states)
+                .enter()
+                .append("g")
+                .attr("transform", (d, i) => `translate(${svgWidth - 100}, ${margin.top + i * 20})`);
+
+            // adds colored rectangles to the legend
+            legend.append("rect")
+                .attr("width", 12)
+                .attr("height", 12)
+                .attr("fill", d => colorScale(d));
+            
+            // adds text labels to the legend 
+            legend.append("text")
+                .attr("x", 15)
+                .attr("y", 10)
+                .text(d => d)
+                .style("fill", "white");
+                
+            // uses class axis' and creates the x axis on at the bottom
+            chart.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleX));
+
+            // uses class axis' and creates the y axis on the left with 5 ticks
+            chart.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(scaleY).ticks(5));
+            
+            // reference to the tooltip element
+            const tooltip = d3.select("#tooltip");
+            
+            // creates the bars for the bar chart and adds mouseover, mousemove, and mouseout events for the tooltip
+            chart.selectAll(".bubble")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("class", "bubble")
+                .attr("cx", d => scaleX(d.MaxTemp))
+                .attr("cy", d => scaleY(d.MinTemp))
+                .attr("fill", d => colorScale(d["Station.State"]))
+                .attr("r", d => radiusScale(d.Precipitation))
+                .attr("opacity", 0.5)
+                .on("mouseover", (event, d) => {
+                    tooltip
+                        .html(`<strong>${d["Station.City"]}</strong>: Max: ${d.MaxTemp}°F, Min: ${d.MinTemp}°F, Precipitation: ${d.Precipitation}`)
+                        .style("opacity", 1);
+                })
+                .on("mousemove", (event) => {
+                    tooltip
+                        .style("left", (event.pageX + 12) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.style("opacity", 0);
+                });
+            });
+        </script>
+    </body>
+</html>
