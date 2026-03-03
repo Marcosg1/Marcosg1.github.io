@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>D3 Line Chart</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            .axis-x path,
+            .axis-y path {
+                fill:none;
+                stroke: black;
+                shape-rendering: crispEdges;                
+            }
+            .axis-x .tick line,
+            .axis-y .tick line {
+                stroke: #ccc;
+            }
+            .axis text {
+                font-size: 12px;
+            }
+            .tooltip {
+                position: absolute;
+                background: rgba(0,0,0,.5);
+                color: white;
+                padding: 6px 10px;
+                border-radius: 5px;
+                font-size: 13px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s ease;
+            }
+        </style>
+    </head>
+    <body> 
+        <title>D3 Line Chart</title>
+        <div id="chart-container"></div>
+        <div class="tooltip" id="tooltip"></div>
+
+        <script>
+            d3.csv("../weather.csv").then(function(data) {
+
+            // only gets selected California, SF data
+            data = data.filter(d =>
+                d["Station.State"] === "California" &&
+                d["Station.City"] === "San Francisco"
+            );
+            
+            // makes sure each value in the data is a number 
+            data.forEach(d => {
+                d.date = new Date(d["Date.Full"]);
+                d.MaxTemp = +d["Data.Temperature.Max Temp"];
+            });
+
+            console.log(data);
+            
+            const svgWidth = 1200;
+            const svgHeight = 700;
+            const margin = { top: 40, right: 150, bottom: 70, left: 100};
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            // Create the SVG container in the chart container div
+            const svg = d3.select("#chart-container")
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            // groups the svg elemnts together and moves them to the right and down by the margin amount
+            const chart = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`)
+
+            //title of the chart
+            svg.append("text")
+                .attr("x", width / 2 - margin.left)
+                .attr("y", margin.top / 2)
+                .style("font-size", "20px")
+                .style("fill", "white")
+                .text("Maximum Temperature Over Time in California, San Francisco 2016");
+
+            // label for the x axis
+            svg.append("text")
+                .attr("x", svgWidth / 2 - 50)
+                .attr("y", svgHeight - margin.bottom / 4)
+                .style("font-size", "15px")
+                .style("fill", "white")
+                .text("Months");
+            
+            // label for the y axis
+            svg.append("text")
+                .attr("x", -svgHeight / 2 - 50)
+                .attr("y", margin.left / 2)
+                .attr("transform", "rotate(-90)")
+                .style("font-size", "15px")
+                .style("fill", "white")
+                .text("Maximum Temperature (°F)");
+            
+            // sclaes x axis with domain (jan - dec) and range (pixel width size of the chart)
+            const scaleX = d3.scaleTime()
+                .domain([new Date(2016, 0, 1), new Date(2016, 11, 31)])
+                .range([0, width]);
+
+            // scales y axis with domain (input of min/max MaxTemp) and range (pixel height size of the chart), nice just means if max 37 label will be 40 instead of 37
+            const scaleY = d3.scaleLinear()
+                .domain([d3.min(data, d => d.MaxTemp), d3.max(data, d => d.MaxTemp)])
+                .nice()
+                .range([height, 0]);
+                
+            // uses class axis' and creates the x axis of months
+            chart.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleX).ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%b")));
+
+            // uses class axis' and creates the y axis on the left with 5 ticks
+            chart.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(scaleY).ticks(5));
+
+            // creates the line generator function that takes in the data and returns a path string for the line chart
+            const line = d3.line()
+                .x(d => scaleX(d.date))
+                .y(d => scaleY(d.MaxTemp));
+            
+            // adds the line path to the chart
+            chart.append("path")
+                .datum(data)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("stroke-width", 2)
+                .attr("d", line);
+            });
+        </script>
+    </body>
+</html>
