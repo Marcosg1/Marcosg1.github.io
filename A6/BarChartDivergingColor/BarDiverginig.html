@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3 Bar Chart Diverging Color Scale</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"
+        integrity="sha512-wNH6xsp2n8CfB91nrBtfc4sfLwYPBMjSWVUwQOp60AYYXH6i8yCwuKFZ4rgK2i6pQek/b+bSyR7b01/922IBzQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        .axis-x path,
+        .axis-y path {
+            fill: none;
+            stroke: black;
+            shape-rendering: crispEdges;
+        }
+
+        .axis-x .tick line,
+        .axis-y .tick line {
+            stroke: #ccc;
+        }
+
+        .axis text {
+            font-size: 12px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, .5);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>D3 Bar Chart Diverging Color Scale</h1>
+    <div id="chart-container"></div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        d3.csv("../earthquakes.csv").then(function (data) {
+
+            // only gets selected Hawaii data
+            data = data.filter(d =>
+                d["location.name"] === "Hawaii"
+            );
+
+            data.forEach(d => {
+                d.significance = +d["impact.significance"];
+            });
+
+            // gets the  average significance for all earthquakes to compare to each location's average
+            const overallAvgSig = d3.mean(data, d => d.significance);
+
+            // groups earthquakes by location
+            const locationGroups = d3.rollups(
+                data,
+                v => ({
+                    count: v.length,
+                    avgSignificance: d3.mean(v, d => d.significance)
+                }),
+                d => d["location.full"]
+            );
+
+            console.log(locationGroups);
+
+            // converts to objects
+            let chartData = locationGroups.map(([location, values]) => ({
+                location: location,
+                count: values.count,
+                avgSignificance: values.avgSignificance,
+                diff: values.avgSignificance - overallAvgSig,
+            }));
+
+            // sort by largest difference
+            chartData.sort((a, b) => b.diff - a.diff);
+
+            // keeps top 25 and bottom 25
+            chartData = chartData.slice(0, 25).concat(chartData.slice(-25));
+            chartData.reverse();
+
+            console.log(chartData);
+
+            const svgWidth = 900;
+            const svgHeight = 800;
+            const margin = { top: 30, right: 180, bottom: 150, left: 250 };
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            // SVG container
+            const svg = d3.select("#chart-container")
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            const chart = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`)
+
+            // title for chart
+            svg.append("text")
+                .attr("x", svgWidth / 2 + 50)
+                .attr("y", margin.top - 10)
+                .style("font-size", "20px")
+                .style("text-anchor", "middle")
+                .text("Top and Bottom 25 Locations by Earthquake Significance in Hawaii");
+
+            // label for x axis
+            svg.append("text")
+                .attr("x", svgWidth / 2 + 40)
+                .attr("y", svgHeight - margin.bottom / 2)
+                .style("font-size", "15px")
+                .style("text-anchor", "middle")
+                .text("Significance Difference From Average");
+
+            const maxDiff = d3.max(chartData, d => d.diff);
+
+            // x scale
+            const scaleX = d3.scaleLinear()
+                .domain([-maxDiff, maxDiff])
+                .range([0, width]);
+
+            // y scale    
+            const scaleY = d3.scaleBand()
+                .domain(chartData.map(d => d.location))
+                .range([height, 0])
+                .padding(0.1);
+
+            // creates a diverging color scale using -+maxDiff as input and range as color scale from colorbrewer
+            const colorScale = d3.scaleDiverging()
+                .domain([-maxDiff, 0, maxDiff])
+                .interpolator(d3.interpolateRgbBasis(['#d53e4f','#fc8d59','#fee08b','#e6f598','#99d594','#3288bd']));
+
+            // x axis 
+            chart.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleX))
+                .selectAll("text");
+
+            // y axis
+            chart.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(scaleY));
+
+            // center line
+            chart.append("line")
+                .attr("x1", scaleX(0))
+                .attr("x2", scaleX(0))
+                .attr("y1", 0)
+                .attr("y2", height)
+                .attr("stroke", "blackl");
+
+            // creates legend
+            const legend = d3.legendColor()
+                .scale(colorScale)
+                .cells(6)
+                .title("Significance Difference");
+
+            svg.append("g")
+                .attr("transform", "translate(735,40)")
+                .call(legend);
+
+            // reference to the tooltip element
+            const tooltip = d3.select("#tooltip");
+
+            // creates the bars with diverging colors and tooltip on hover
+            chart.selectAll(".bar")
+                .data(chartData)
+                .enter()
+                .append("rect")
+                .attr("x", d => scaleX(Math.min(0, d.diff)))
+                .attr("y", d => scaleY(d.location))
+                .attr("width", d => Math.abs(scaleX(d.diff) - scaleX(0)))
+                .attr("height", d => scaleY.bandwidth())
+                .attr("fill", d => colorScale(d.diff))
+                .on("mouseover", (event, d) => {
+                    tooltip
+                        .html(`
+                        <strong>${d.location}</strong><br>
+                        Avg Significance: ${d.avgSignificance.toFixed(1)}<br>
+                        Difference: ${d.diff.toFixed(2)}
+                    `)
+                        .style("opacity", 1);
+                })
+                .on("mousemove", (event) => {
+                    tooltip
+                        .style("left", (event.pageX + 12) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.style("opacity", 0);
+                });
+        });
+    </script>
+</body>
+</html>
