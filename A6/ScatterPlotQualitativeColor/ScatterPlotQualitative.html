@@ -1,0 +1,185 @@
+i<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3 Scatter Plot Qualitative Color Scale</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"
+        integrity="sha512-wNH6xsp2n8CfB91nrBtfc4sfLwYPBMjSWVUwQOp60AYYXH6i8yCwuKFZ4rgK2i6pQek/b+bSyR7b01/922IBzQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        .axis-x path,
+        .axis-y path {
+            fill: none;
+            stroke: black;
+            shape-rendering: crispEdges;
+        }
+
+        .axis-x .tick line,
+        .axis-y .tick line {
+            stroke: #ccc;
+        }
+
+        .axis text {
+            font-size: 12px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, .5);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>D3 Scatter Plot Qualitative Color Scale</h1>
+    <div id="chart-container"></div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        d3.csv("../earthquakes.csv").then(function (data) {
+
+            // converts values to numbers and assigns regions
+            data.forEach(d => {
+                d.magnitude = +d["impact.magnitude"];
+                d.depth = +d["location.depth"];
+
+            if (["California","Washington","Oregon","Nevada","Idaho","Utah","Arizona"].includes(d["location.name"])) {
+                    d.region = "West";
+                }
+                else if (["Alaska","Hawaii"].includes(d["location.name"])) {
+                    d.region = "Pacific";
+                }
+                else if (["Montana","Wyoming","Colorado","New Mexico","North Dakota","South Dakota","Nebraska","Kansas"].includes(d["location.name"])) {
+                    d.region = "Midwest";
+                }
+                else if (["Texas","Oklahoma","Arkansas","Missouri"].includes(d["location.name"])) {
+                    d.region = "Central";
+                }
+                else {
+                    d.region = "East";
+                }
+            });
+
+            console.log(data);
+
+            const svgWidth = 900;
+            const svgHeight = 800;
+            const margin = { top: 30, right: 180, bottom: 150, left: 50 };
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            // SVG container
+            const svg = d3.select("#chart-container")
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            const chart = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`)
+
+            // title for chart
+            svg.append("text")
+                .attr("x", svgWidth / 2)
+                .attr("y", margin.top - 10)
+                .style("font-size", "20px")
+                .style("text-anchor", "middle")
+                .text("Earthquake Magnitude vs Depth Significance Difference from Average by US Region");
+
+            // label for x axis
+            svg.append("text")
+                .attr("x", width /  2 + margin.left)
+                .attr("y", svgHeight - margin.bottom / 2)
+                .style("font-size", "15px")
+                .style("text-anchor", "middle")
+                .text("Earthquake Depth");
+
+            // label for y axis 
+            svg.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -svgHeight / 2 + margin.top)
+                .attr("y", 20)
+                .style("font-size", "15px")
+                .style("text-anchor", "middle")
+                .text("Earthquake Magnitude");
+            
+            // x scale
+            const scaleX = d3.scaleLinear()
+                .domain(d3.extent(data, d => d.depth))
+                .range([0, width]);
+
+            // y scale    
+            const scaleY = d3.scaleLinear()
+                .domain(d3.extent(data, d => d.magnitude))
+                .range([height, 0]);
+
+            // qualitative color scale for regions
+            const colorScale = d3.scaleOrdinal()
+                .domain(["West","Pacific","Midwest","Central","East"])
+                .range(d3.schemeCategory10);
+
+            // x axis 
+            chart.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleX))
+                .selectAll("text");
+
+            // y axis
+            chart.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(scaleY));
+
+            // creates legend
+            const legend = d3.legendColor()
+                .scale(colorScale)
+                .title("US Region");
+
+            svg.append("g")
+                .attr("transform", "translate(735,80)")
+                .call(legend);
+
+            // reference to the tooltip element
+            const tooltip = d3.select("#tooltip");
+
+            // plots the points
+            chart.selectAll(".dot")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("cx", d => scaleX(d.depth))
+                .attr("cy", d => scaleY(d.magnitude))
+                .attr("r", 2)
+                .attr("fill", d => colorScale(d.region))
+                .attr("opacity", 0.35)
+                .on("mouseover", (event, d) => {
+                    tooltip
+                        .html(`
+                            <strong>${d["location.full"]}</strong><br>
+                            Region: ${d.region}<br>
+                            Magnitude: ${d.magnitude}<br>
+                            Depth: ${d.depth}
+                        `)
+                        .style("opacity", 1);
+                })
+                .on("mousemove", (event) => {
+                    tooltip
+                        .style("left", (event.pageX + 12) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.style("opacity", 0);
+                });
+        });
+    </script>
+</body>
+</html>
