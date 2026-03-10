@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3 Bar Chart Sequential Color Scale</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"
+        integrity="sha512-wNH6xsp2n8CfB91nrBtfc4sfLwYPBMjSWVUwQOp60AYYXH6i8yCwuKFZ4rgK2i6pQek/b+bSyR7b01/922IBzQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        .axis-x path,
+        .axis-y path {
+            fill: none;
+            stroke: black;
+            shape-rendering: crispEdges;
+        }
+
+        .axis-x .tick line,
+        .axis-y .tick line {
+            stroke: #ccc;
+        }
+
+        .axis text {
+            font-size: 12px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, .5);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>D3 Bar Chart Sequential Color Scale</h1>
+    <div id="chart-container"></div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        d3.csv("../earthquakes.csv").then(function (data) {
+
+            // only gets selected California data
+            data = data.filter(d =>
+                d["location.name"] === "California"
+            );
+
+            // converts to numsbers
+            data.forEach(d => {
+                d.magnitude = +d["impact.magnitude"];
+            });
+
+            // groups earthquakes by location
+            const locationGroups = d3.rollups(
+                data,
+                v => ({
+                    count: v.length,
+                    avgMagnitude: d3.mean(v, d => d.magnitude)
+                }),
+                d => d["location.full"]
+            );
+
+            console.log(locationGroups);
+
+            // converts to objects
+            let chartData = locationGroups.map(([location, values]) => ({
+                location: location,
+                count: values.count,
+                avgMagnitude: values.avgMagnitude
+            }));
+
+            // sort by most earthquakes
+            chartData.sort((a, b) => b.count - a.count);
+
+            // keep top 50
+            chartData = chartData.slice(0, 50);
+            chartData.reverse();
+
+            console.log(chartData);
+
+            const svgWidth = 900;
+            const svgHeight = 800;
+            const margin = { top: 40, right: 150, bottom: 150, left: 250 };
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            // Create the SVG container in the chart container div
+            const svg = d3.select("#chart-container")
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            // groups the svg elemnts together and moves them to the right and down by the margin amount
+            const chart = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`)
+
+            // adds a title to the chart
+            svg.append("text")
+                .attr("x", svgWidth / 2 + 50)
+                .attr("y", margin.top - 10)
+                .style("font-size", "20px")
+                .style("text-anchor", "middle")
+                .text("Top 50 California Earthquake Locations");
+
+            // label for x axis
+            svg.append("text")
+                .attr("x", svgWidth / 2 + 40)
+                .attr("y", svgHeight - margin.bottom / 2)
+                .style("font-size", "15px")
+                .style("text-anchor", "middle")
+                .text("Number of Earthquakes");
+
+            // sclaes x axis with domain (input of labels) and range (pixel width size of the chart)
+            const scaleX = d3.scaleLinear()
+                .domain([0, d3.max(chartData, d => d.count)])
+                .nice()
+                .range([0, width]);
+
+            // scales y axis with domain (input of values) and range (pixel height size of the chart), nice just means if max 37 label will be 40 instead of 37
+            const scaleY = d3.scaleBand()
+                .domain(chartData.map(d => d.location))
+                .range([height, 0])
+                .padding(0.1);
+
+            // creates a sequential color scale using ave mangnitude as input and range as color scale from colorbrewer
+            const colorScale = d3.scaleSequential()
+                .domain(d3.extent(chartData, d => d.avgMagnitude))
+                .interpolator(d3.interpolateRgbBasis(["#fee5d9", "#fcae91", "#fb6a4a", "#de2d26", "#a50f15"]));
+
+            // uses class axis' and creates the x axis on at the bottom
+            chart.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleX))
+                .selectAll("text");
+
+            // uses class axis' and creates the y axis on the left with 5 ticks
+            chart.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(scaleY));
+
+            // creates legend
+            const legend = d3.legendColor()
+                .scale(colorScale)
+                .cells(6)
+                .title("Average Magnitude");
+
+            svg.append("g")
+                .attr("transform", "translate(750,40)")
+                .call(legend);
+
+            // reference to the tooltip element
+            const tooltip = d3.select("#tooltip");
+
+            // creates the bars for the bar chart and adds mouseover, mousemove, and mouseout events for the tooltip
+            chart.selectAll(".bar")
+                .data(chartData)
+                .enter()
+                .append("rect")
+                .attr("x", 0)
+                .attr("y", d => scaleY(d.location))
+                .attr("width", d => scaleX(d.count))
+                .attr("height", d => scaleY.bandwidth())
+                .attr("fill", d => colorScale(d.avgMagnitude))
+                .on("mouseover", (event, d) => {
+                    tooltip
+                        .html(`
+                        <strong>${d.location}</strong><br>
+                        Earthquakes: ${d.count}<br>
+                        Avg Magnitude: ${d.avgMagnitude.toFixed(2)}
+                    `)
+                        .style("opacity", 1);
+                })
+                .on("mousemove", (event) => {
+                    tooltip
+                        .style("left", (event.pageX + 12) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.style("opacity", 0);
+                });
+        });
+    </script>
+</body>
+</html>
