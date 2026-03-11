@@ -82,7 +82,6 @@ The data must be loaded from a CSV file -->
                 .attr("x", width / 2 - margin.left)
                 .attr("y", margin.top / 2)
                 .style("font-size", "20px")
-                .style("fill", "white")
                 .text("Weather Patterns: Temperature, Rainfall, and Wind Speed");
 
             // label for the x axis
@@ -90,7 +89,6 @@ The data must be loaded from a CSV file -->
                 .attr("x", svgWidth / 2 - 50)
                 .attr("y", svgHeight - margin.bottom / 4)
                 .style("font-size", "15px")
-                .style("fill", "white")
                 .text("Maximum Temperature (°F)");
             
             // label for the y axis
@@ -99,7 +97,6 @@ The data must be loaded from a CSV file -->
                 .attr("y", margin.left / 2)
                 .attr("transform", "rotate(-90)")
                 .style("font-size", "15px")
-                .style("fill", "white")
                 .text("Minimum Temperature (°F)");
             
             // sclaes x axis with domain (input of labels) and range (pixel width size of the chart)
@@ -140,8 +137,7 @@ The data must be loaded from a CSV file -->
             legend.append("text")
                 .attr("x", 15)
                 .attr("y", 10)
-                .text(d => d)
-                .style("fill", "white");
+                .text(d => d);
                 
             // uses class axis' and creates the x axis on at the bottom
             chart.append("g")
