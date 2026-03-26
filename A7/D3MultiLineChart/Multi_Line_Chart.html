@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>D3 Multi-Line Chart</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"
+        integrity="sha512-wNH6xsp2n8CfB91nrBtfc4sfLwYPBMjSWVUwQOp60AYYXH6i8yCwuKFZ4rgK2i6pQek/b+bSyR7b01/922IBzQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <style>
+            .axis-x path,
+            .axis-y path {
+                fill:none;
+                stroke: black;
+                shape-rendering: crispEdges;                
+            }
+            .axis-x .tick line,
+            .axis-y .tick line {
+                stroke: #ccc;
+            }
+            .axis text {
+                font-size: 12px;
+            }
+            .tooltip {
+                position: absolute;
+                background: rgba(0,0,0,.5);
+                color: white;
+                padding: 6px 10px;
+                border-radius: 5px;
+                font-size: 13px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s ease;
+            }
+        </style>
+    </head>
+    <body> 
+        <div id="chart-container"></div>
+        <div class="tooltip" id="tooltip"></div>
+
+        <script>
+            d3.csv("../police_shootings.csv").then(function(data) {
+
+            // filters out the unknown race
+            data = data.filter(d => d["Person.Race"] !== "Unknown");
+            
+            // gets date of each shooting and the race of the person shot
+            data.forEach(d => {
+                d.year = +d["Incident.Date.Year"];
+                d.month = +d["Incident.Date.Month"];
+                d.race = d["Person.Race"];
+                d.date = new Date(d.year, d.month - 1, 1);
+            });
+
+            // counts the number of shootings per race and dates
+            const raceCounts = d3.rollups(
+                data,
+                v => v.length,
+                d => d.race
+            );
+
+            // gets the top 4 races with the most shootings, sorts them in descending order
+            const top4Races = raceCounts
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4)
+                .map(d => d[0]);   
+            
+            console.log("Race Counts:", raceCounts);
+            
+            // count incidents per race per date
+            const raceDateCounts = d3.rollup(
+                data,
+                v => v.length,
+                d => d.race,
+                d => d.date.getTime()
+            );
+
+            // collects all unique month timestamps and in cronological order
+            const allTimes = Array.from(
+                new Set(data.map(d => d.date.getTime()))
+            ).sort((a, b) => a - b);
+
+            //  makes array of { race, values: [{date, count}] }
+            const chartData = top4Races.map(race => ({
+                race,
+                values: allTimes.map(t => ({
+                    date:  new Date(t),
+                    count: raceDateCounts.get(race)?.get(t) || 0
+                }))
+            }));
+
+            console.log("Chart Data:", chartData);
+            
+            const svgWidth = 1100;
+            const svgHeight = 600;
+            const margin = { top: 50, right: 200, bottom: 80, left: 80};
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            // Create the SVG container in the chart container div
+            const svg = d3.select("#chart-container")
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            // groups the svg elemnts together and moves them to the right and down by the margin amount
+            const chart = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`)
+
+            // title of the chart
+            svg.append("text")
+                .attr("x", (width + margin.left) / 2)
+                .attr("y", margin.top / 2)
+                .attr("text-anchor", "middle")
+                .style("font-size", "20px")
+                .text("U.S. Police Shootings by Race Over Time");
+
+            // label for the x axis
+            svg.append("text")
+                .attr("x", (width + margin.left) / 2)
+                .attr("y", svgHeight - 15)
+                .attr("text-anchor", "middle")
+                .style("font-size", "15px")
+                .text("Month / Year");
+            
+            // label for the y axis
+            svg.append("text")
+                .attr("x", -(height + margin.top) / 2)
+                .attr("y", margin.left / 3)
+                .attr("transform", "rotate(-90)")
+                .attr("text-anchor", "middle")
+                .style("font-size", "15px")
+                .text("Number of Shootings");
+            
+            // sclaes x axis with correct timestamps
+            const scaleX = d3.scaleTime()
+                .domain(d3.extent(allTimes.map(t => new Date(t))))
+                .range([0, width]);
+
+            // scales y axis with num of shotings
+            const scaleY = d3.scaleLinear()
+                .domain([0, d3.max(chartData, s => d3.max(s.values, d => d.count))])
+                .nice()
+                .range([height, 0]);
+
+            // creates the colors for each line
+            const colorScale = d3.scaleOrdinal()
+                .domain(top4Races)
+                .range(d3.schemeCategory10);
+                
+            // uses class axis' and creates the x axis of months
+            chart.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleX).ticks(d3.timeMonth.every(3)).tickFormat(d3.timeFormat("%b %Y")))
+                .selectAll("text")
+                .attr("transform", "rotate(-35)")
+                .style("text-anchor", "end");
+
+            // uses class axis' and creates the y axis on the left with 5 ticks
+            chart.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(scaleY).ticks(5));
+
+            // creates the legend for the chart
+            const legend = d3.legendColor()
+                .scale(colorScale)
+                .title("Race");
+            
+            svg.append("g")
+                .attr("transform", `translate(${margin.left + width + 20}, ${margin.top})`)
+                .call(legend);
+
+            // creates the line generator function that takes in the data and returns a path string for the line chart
+            const line = d3.line()
+                .x(d => scaleX(d.date))
+                .y(d => scaleY(d.count));
+
+            const tooltip = d3.select("#tooltip");
+
+            // creates the lines for each race
+            chartData.forEach(series => {
+                chart.append("path")
+                    .datum(series.values)
+                    .attr("fill", "none")
+                    .attr("stroke-width", 1.5)
+                    .attr("stroke", colorScale(series.race))
+                    .attr("d", line)
+                    .on("mouseover", (event) => {
+                        tooltip
+                            .html(`<strong>${series.race}</strong>`)
+                            .style("opacity", 1);
+                    })
+                    .on("mousemove", (event) => {
+                        tooltip
+                            .style("left", (event.pageX + 12) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", () => {
+                        tooltip.style("opacity", 0);
+                    });
+                });
+            });
+        </script>
+    </body>
+</html>
