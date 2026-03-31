@@ -23,6 +23,11 @@
       stroke: gray;
     }
 
+    .cell.highlight {
+      stroke: orange;
+      stroke-width: 1.75;
+    }
+
     .label {
       font-size: 10px;
     }
@@ -96,7 +101,7 @@
       });
 
       // draws the cells
-      svg.selectAll(".cell")
+      const cells = svg.selectAll(".cell")
         .data(matrix)
         .enter()
         .append("rect")
@@ -107,6 +112,8 @@
         .attr("height", cellSize)
         .attr("fill", d => d.value ? "steelblue" : "white")
         .on("mouseover", (event, d) => {
+          cells.classed("highlight", c => c.row === d.row || c.col === d.col);
+
           tooltip
             .style("opacity", 1)
             .html(`<strong>${d.source.name}</strong> <---> <strong>${d.target.name}</strong><br>
@@ -119,8 +126,9 @@
             .style("left", (event.pageX + 10) + "px")
             .style("top", (event.pageY - 20) + "px");
         })
-        .on("mouseout", (event, d) => {
+        .on("mouseout", (event) => {
           tooltip.style("opacity", 0);
+          cells.classed("highlight", false);
         });
 
       // draws the row labels
