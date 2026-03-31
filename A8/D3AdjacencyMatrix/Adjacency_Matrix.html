@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Adjacency Matrix</title>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+    }
+
+    .chart-scroll {
+      width: 95vw;
+      height: 85vh;
+      overflow: auto;
+      border: 1px solid #ddd;
+    }
+
+    .cell {
+      stroke: gray;
+    }
+
+    .label {
+      font-size: 10px;
+    }
+
+    .tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      pointer-events: none;
+      opacity: 0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="chart-scroll"><svg></svg></div>
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    const svg = d3.select("svg");
+    const tooltip = d3.select("#tooltip");
+
+    const margin = 150;
+    const cellSize = 20;
+
+    Promise.all([
+      d3.csv("../fb-pages-food/fb-pages-food-nodes.csv"),
+      d3.csv("../fb-pages-food/fb-pages-food-edges.csv")
+    ]).then(([nodes, links]) => {
+
+      const matrixSize = nodes.length * cellSize;
+      const svgSize = margin + matrixSize + 40;
+
+      svg.attr("width", svgSize)
+        .attr("height", svgSize);
+
+      // converts the ids to numbers
+      nodes.forEach(d => {
+        d.id = +d.id;
+      });
+
+      // converts the source and target ids to numbers
+      links.forEach(d => {
+        d.source = +d.source;
+        d.target = +d.target;
+      });
+
+      // creates the adjacency matrix, each cell is a node in the matrix
+      const matrix = [];
+      nodes.forEach((rowNode, i) => {
+        nodes.forEach((colNode, j) => {
+          const linkExists = links.some(
+            l =>
+              (l.source === rowNode.id && l.target === colNode.id) ||
+              (l.source === colNode.id && l.target === rowNode.id)
+          );
+
+          // adds the cell to the matrix
+          matrix.push({
+            row: i,
+            col: j,
+            value: linkExists ? 1 : 0,
+            source: rowNode,
+            target: colNode
+          });
+        });
+      });
+
+      // draws the cells
+      svg.selectAll(".cell")
+        .data(matrix)
+        .enter()
+        .append("rect")
+        .attr("class", "cell")
+        .attr("x", d => margin + d.col * cellSize)
+        .attr("y", d => margin + d.row * cellSize)
+        .attr("width", cellSize)
+        .attr("height", cellSize)
+        .attr("fill", d => d.value ? "steelblue" : "white")
+        .on("mouseover", (event, d) => {
+          tooltip
+            .style("opacity", 1)
+            .html(`<strong>${d.source.name}</strong> <---> <strong>${d.target.name}</strong><br>
+            Connected: ${d.value ? "Yes" : "No"}`)
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 20) + "px");
+        })
+        .on("mousemove", (event) => {
+          tooltip
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 20) + "px");
+        })
+        .on("mouseout", (event, d) => {
+          tooltip.style("opacity", 0);
+        });
+
+      // draws the row labels
+      svg.selectAll(".row-label")
+        .data(nodes)
+        .enter()
+        .append("text")
+        .attr("class", "label")
+        .attr("x", margin - 10)
+        .attr("y", (_, i) => margin + i * cellSize + cellSize / 2)
+        .attr("text-anchor", "end")
+        .text(d => d.name);
+
+      // draws the column labels
+      svg.selectAll(".col-label")
+        .data(nodes)
+        .enter()
+        .append("text")
+        .attr("class", "label")
+        .attr("x", (_, i) => margin + i * cellSize + cellSize / 2)
+        .attr("y", margin - 10)
+        .attr("text-anchor", "start")
+        .attr("transform", (_, i) =>
+          `rotate(-90, ${margin + i * cellSize + cellSize / 2}, ${margin - 10})`
+        )
+        .text(d => d.name);
+
+    });
+  </script>
+</body>
+
+</html>
