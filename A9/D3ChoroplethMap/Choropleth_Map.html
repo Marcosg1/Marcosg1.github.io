@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3 Choropleth Map — Poverty by State</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+      }
+      #chart-container {
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 16px;
+        width: fit-content;
+        max-width: 100%;
+        margin: 0 16px 16px;
+        padding: 12px;
+        box-sizing: border-box;
+        background: white;
+        border: 1px solid white;
+        border-radius: 4px;
+      }
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 8px 0;
+        font-size: 12px;
+        color: black;
+      }
+      .legend-color {
+        width: 26px;
+        height: 20px;
+        flex-shrink: 0;
+        border: 1px solid black;
+        border-radius: 2px;
+      }
+      .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        padding: 6px 10px;
+        border-radius: 5px;
+        font-size: 13px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        max-width: 260px;
+        line-height: 1.35;
+      }
+
+    </style>
+  </head>
+  <body>
+    <h1 class="page-title">U.S. Poverty Rate by State (2023)</h1>
+    <h3>I got reference help from inclass example choropleth map and from <a href="https://creatingwithdata.com/choropleth-map/">https://creatingwithdata.com/choropleth-map/</a></h3>
+    <div id="chart-container">
+      <div>
+        <svg width="640" height="400"></svg>
+      </div>
+      <aside>
+        <h2>Poverty rate (%)</h2>
+        <p class="sub">All ages, 2023 (ACS) — 5 brackets</p>
+        <div id="legend-items"></div>
+      </aside>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+      (function () {
+        var mapSvg = d3.select("svg"),
+          width = +mapSvg.attr("width"),
+          height = +mapSvg.attr("height");
+
+        var tooltip = d3.select("#tooltip");
+
+        var usAtlasUrl =
+          "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
+
+        var data = new Map();
+
+        var povertyBrackets = [
+          "Under 10%",
+          "10 - 11.9%",
+          "12 - 13.9%",
+          "14 - 15.9%",
+          "16%+",
+        ];
+
+        var colorScale = d3
+          .scaleOrdinal()
+          .domain(povertyBrackets)
+          .range(d3.schemeReds[5]);
+
+        // makes the poverty brackets based on the poverty rate value
+        function povertyBracket(v) {
+          if (v < 10) return povertyBrackets[0];
+          if (v < 12) return povertyBrackets[1];
+          if (v < 14) return povertyBrackets[2];
+          if (v < 16) return povertyBrackets[3];
+          return povertyBrackets[4];
+        }
+
+        // makes the legend items
+        povertyBrackets.forEach(function (b) {
+          var row = d3
+            .select("#legend-items")
+            .append("div")
+            .attr("class", "legend-row");
+          row.append("div")
+            .attr("class", "legend-color")
+            .style("background-color", colorScale(b));
+          row.append("span").text(b);
+        });
+
+        // loads the poverty data and the us atlas data that gets converted to geo data
+        Promise.all([d3.json(usAtlasUrl), d3.csv("../Poverty2023.csv")])
+          .then(function (results) {
+            var usMap = results[0];
+            var povertyData = results[1];
+            var geoData = topojson.feature(usMap, usMap.objects.states);
+            ready(geoData, povertyData);
+          });
+
+        // makes the projection and path with the geo data and poverty data
+        function ready(geoData, povertyData) {
+            povertyData = povertyData.filter(d => d.Attribute === "PCTPOVALL_2023");
+            povertyData.forEach(d => {
+              data.set(d.Area_Name, +d.Value);
+            });
+
+          var projection = d3.geoAlbersUsa().fitSize([width, height], geoData);
+          var path = d3.geoPath(projection);
+
+          // makes the states layer
+          mapSvg.append("g")
+            .attr("class", "states-layer")
+            .selectAll("path")
+            .data(geoData.features)
+            .enter()
+            .append("path")
+            .attr("d", path)
+            .attr("class", "State")
+            .attr("fill", function (d) {
+              var povValue = data.get(d.properties.name);
+              var stateColor  = povertyBracket(povValue);
+              return colorScale(stateColor);
+            })
+            .style("stroke", "black")
+            .style("stroke-width", "0.5px")
+            .on("mouseover", function (event, d) {
+              tooltip.html(`<strong>${d.properties.name}</strong><br>Poverty rate: ${data.get(d.properties.name).toFixed(1)}%`,)
+                .style("left", event.pageX + 12 + "px")
+                .style("top", event.pageY - 28 + "px")
+                .style("opacity", 1);
+            })
+            .on("mousemove", function (event) {
+              tooltip
+                .style("left", event.pageX + 12 + "px")
+                .style("top", event.pageY - 28 + "px");
+            })
+            .on("mouseleave", function () {
+              tooltip.style("opacity", 0);
+            });
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Proportional Symbol Map — Cost of Living by State</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"
+        integrity="sha512-wNH6xsp2n8CfB91nrBtfc4sfLwYPBMjSWVUwQOp60AYYXH6i8yCwuKFZ4rgK2i6pQek/b+bSyR7b01/922IBzQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        body {
+            margin: 0;
+        }
+
+        #map {
+            height: 100vh;
+        }
+
+        .d3-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        #tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font: 14px sans-serif;
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+        }
+
+        #tooltip strong {
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        #tooltip span {
+            color: #555;
+            font-size: 12px;
+        }
+
+        #legend-wrap {
+            position: absolute;
+            right: 12px;
+            bottom: 24px;
+            z-index: 1001;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid white;
+            border-radius: 8px;
+            padding: 12px 14px 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+            max-width: min(320px, 92vw);
+            font: 12px/1.35 system-ui, sans-serif;
+            color: black;
+        }
+
+        #legend-color svg {
+            display: block;
+        }
+
+        .legend-block {
+            margin-top: 12px;
+        }
+
+        .legend-block h3 {
+            margin: 0 0 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: black;
+            text-transform: uppercase;
+        }
+
+        .size-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .size-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .size-item span {
+            font-size: 8px;
+            color: black;
+        }
+
+        .shape-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .shape-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: black;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div id="tooltip"></div>
+    <aside id="legend-wrap">
+        <div id="legend-color"></div>
+        <div class="legend-block">
+            <h3>Symbol size — overall cost index</h3>
+            <div id="legend-size" class="size-row"></div>
+        </div>
+        <div class="legend-block">
+            <h3>Symbol shape — cost rank (1 = most expensive)</h3>
+            <div id="legend-shape" class="shape-row"></div>
+        </div>
+    </aside>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        (function () {
+            const map = L.map("map").setView([38, -97], 4);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+            const svg = d3.select(map.getPanes().overlayPane).append('svg').attr('class', 'd3-overlay');
+            const g = svg.append('g').attr('class', 'leaflet-zoom-hide');
+
+            const tooltip = document.getElementById('tooltip');
+
+            // ranks groups  and gives a shape based off rank
+            const rankLabels = ["Ranks 1–17", "Ranks 18–34", "Ranks 35–51"];
+            const shapeTypes = [d3.symbolCircle, d3.symbolSquare, d3.symbolTriangle];
+            function rankGroup(rank) {
+                const rankValue = +rank;
+                if (rankValue <= 17) return 0;
+                if (rankValue <= 34) return 1;
+                return 2;
+            }
+
+            // gets the data from the csv files then merges the data with the state points
+            Promise.all([d3.csv("../states.csv"),
+            d3.csv("../expensive-states.csv", (d) => ({
+                costRank: +d.costRank,
+                State: d.State,
+                costIndex: +d.costIndex,
+                housingCost: +d.housingCost,
+                groceryCost: +d.groceryCost,
+                utilitiesCost: +d.utilitiesCost,
+                transportationCost: +d.transportationCost,
+                miscCost: +d.miscCost,
+            })),
+            ]).then(([centroids, expensive]) => {
+                const byState = new Map(expensive.map((d) => [d.State, d]));
+                const merged = centroids.map((c) => {
+                    const e = byState.get(c.state);
+                    return {
+                        lat: +c.lat,
+                        lng: +c.lng,
+                        state: c.state,
+                        abbr: c.postal_code,
+                        ...e,
+                    };
+                });
+
+                // gets min, max, of the cost index and housing cost
+                const costExtent = d3.extent(merged, (d) => d.costIndex);
+                const housingExtent = d3.extent(merged, (d) => d.housingCost);
+
+                const radius = d3.scaleSqrt()
+                    .domain(costExtent)
+                    .range([6, 28]);
+
+                // makes the symbol area based off the cost index
+                function symbolArea(d) {
+                    const r = radius(d.costIndex);
+                    return Math.max(36, r * r * Math.PI);
+                }
+
+                // makes the color scale based off the housing cost
+                const color = d3.scaleSequential()
+                    .domain(housingExtent)
+                    .interpolator(d3.interpolateYlOrRd);
+
+                // makes the legend for the color scale
+                d3.select("#legend-color")
+                    .append("svg")
+                    .attr("width", 300)
+                    .attr("height", 100)
+                    .append("g")
+                    .attr("transform", "translate(8,5.5)")
+                    .call(
+                        d3.legendColor()
+                        .scale(color)
+                        .title("Housing cost index")
+                        .labelFormat(d3.format(".0f"))
+                        .cells(6),
+                    );
+
+                // makes the legend for the size
+                const sizeRange = d3.ticks(costExtent[0], costExtent[1], 3);
+                const sizeLegend = d3.select("#legend-size");
+                sizeRange.forEach(function (t) {
+                    const r = radius(t);
+                    const item = sizeLegend.append("div").attr("class", "size-item");
+                    item.append("svg")
+                        .attr("width", r * 2 + 4)
+                        .attr("height", r * 2 + 4)
+                        .append("circle")
+                        .attr("cx", r + 2)
+                        .attr("cy", r + 2)
+                        .attr("r", r)
+                        .attr("fill", "black")
+                        .attr("fill-opacity", 0.45);
+                    item.append("span").text(d3.format(".0f")(t));
+                });
+
+                // makes the legend for the shape
+                const shapeLegend = d3.select("#legend-shape");
+                rankLabels.forEach(function (label, i) {
+                    const symbolShape = d3.symbol().type(shapeTypes[i]).size(180);
+                    const row = shapeLegend.append("div").attr("class", "shape-item");
+                    row
+                        .append("svg")
+                        .attr("width", 22)
+                        .attr("height", 22)
+                        .append("path")
+                        .attr("transform", "translate(11,11)")
+                        .attr("d", symbolShape())
+                        .attr("fill", "black")
+                        .attr("stroke", "black")
+                        .attr("stroke-width", 0.5);
+                    row.append("span").text(label);
+                });
+
+                // makes the symbols
+                const symbols = g
+                    .selectAll("path")
+                    .data(merged)
+                    .join("path")
+                    .attr("fill", (d) => color(d.housingCost))
+                    .attr("fill-opacity", 0.75)
+                    .attr("stroke", "black")
+                    .attr("stroke-width", 0.6)
+                    .attr("d", (d) =>
+                        d3.symbol().type(shapeTypes[rankGroup(d.costRank)])
+                            .size(symbolArea(d))(),
+                    );
+
+                // updates the symbols when the map is moved
+                function update() {
+                    const tl = map.latLngToLayerPoint(map.getBounds().getNorthWest());
+                    const br = map.latLngToLayerPoint(map.getBounds().getSouthEast());
+                    svg.style("left", tl.x + "px").style("top", tl.y + "px")
+                        .attr("width", br.x - tl.x).attr("height", br.y - tl.y);
+                    g.attr("transform", "translate(" + -tl.x + "," + -tl.y + ")");
+                    symbols.attr("transform", function (d) {
+                        const p = map.latLngToLayerPoint([d.lat, d.lng]);
+                        return "translate(" + p.x + "," + p.y + ")";
+                    });
+                }
+
+                update();
+                map.on("moveend", update);
+            });
+        })();
+    </script>
+</body>
+
+</html>
