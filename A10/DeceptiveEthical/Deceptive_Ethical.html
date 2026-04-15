@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3 — Screen time vs GPA (deceptive vs ethical)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        #chart-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 32px;
+            align-items: flex-start;
+        }
+
+        .chart-row {
+            display: flex;
+            gap: 40px;
+        }
+
+        .axis-x path,
+        .axis-y path {
+            fill: none;
+            stroke: black;
+            shape-rendering: crispEdges;
+        }
+
+        .axis-x .tick line,
+        .axis-y .tick line {
+            stroke: #ccc;
+        }
+
+        .axis text {
+            font-size: 12px;
+        }
+
+        .panel {
+            flex: 0 0 auto;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="chart-container" class="chart-row"></div>
+    <div id="chart-container-student" class="chart-row"></div>
+    <script>
+        d3.csv("../DataSet.csv").then(function (data) {
+
+            // convert values to numbers
+            data.forEach(d => {
+                d.student_id = +d.student_id;
+                d.screenTime = +d.avg_daily_screen_time_hours;
+                d.gpa = +d.gpa;
+            });
+
+            console.log(data);
+
+            // sorts the data by screen time 
+            const sorted = data.slice().sort((a, b) => a.screenTime - b.screenTime);
+
+            console.log(sorted);
+
+            const svgWidth = 550;
+            const svgHeight = 400;
+            const margin = { top: 60, right: 150, bottom: 70, left: 100 };
+            const width = svgWidth - margin.left - margin.right;
+            const height = svgHeight - margin.top - margin.bottom;
+
+            const svg = d3.select("#chart-container");
+
+            const panelA = svg.append("div");
+            const panelB = svg.append("div");
+
+            //          DECEPTIVE CHART 
+            const svgA = panelA.append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            const chartA = svgA.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // title
+            svgA.append("text")
+                .attr("x", svgWidth / 2 - 150)
+                .attr("y", 30)
+                .style("font-size", "20px")
+                .text("Deceptive: GPA vs Screen Time");
+
+            //  x-axis label
+            svgA.append("text")
+                .attr("x", (svgWidth + margin.left) / 4)
+                .attr("y", svgHeight - 15)
+                .text("Avg daily screen time (hours)");
+
+            // y-axis label
+            svgA.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -(svgHeight + margin.top) / 2.25)
+                .attr("y", margin.left / 2)
+                .attr("text-anchor", "middle")
+                .text("GPA");
+
+            // sclaes x axis for deceptive chart
+            const scaleXA = d3.scaleLinear()
+                .domain([2, 10])
+                .range([0, width]);
+
+            // sclaes y axis for deceptive chart
+            const scaleYA = d3.scaleLinear()
+                .domain(d3.extent(data, d => d.gpa))
+                .range([height, 0]);
+
+            // creates the x axis for the deceptive chart
+            chartA.append("g")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleXA));
+
+            // creates the y axis for the deceptive chart
+            chartA.append("g")
+                .call(d3.axisLeft(scaleYA));
+
+            // creates the line for the deceptive chart
+            const lineA = d3.line()
+                .x(d => scaleXA(d.screenTime))
+                .y(d => scaleYA(d.gpa));
+
+            // adds the line to the deceptive chart
+            chartA.append("path")
+                .datum(sorted)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("d", lineA);
+
+            // adds the points to the deceptive chart
+            chartA.selectAll("circle")
+                .data(sorted)
+                .enter()
+                .append("circle")
+                .attr("cx", d => scaleXA(d.screenTime))
+                .attr("cy", d => scaleYA(d.gpa))
+                .attr("r", 4)
+                .attr("fill", "steelblue");
+
+            //        ETHICAL CHART 
+            const svgB = panelB.append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            const chartB = svgB.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // title
+            svgB.append("text")
+                .attr("x", svgWidth / 2 - 120)
+                .attr("y", 30)
+                .style("font-size", "20px")
+                .text("Ethical: GPA vs Screen Time");
+
+            // x-axis label
+            svgB.append("text")
+                .attr("x", (svgWidth + margin.left) / 4)
+                .attr("y", svgHeight - 15)
+                .text("Avg daily screen time (hours)");
+
+            // y-axis label
+            svgB.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -(svgHeight + margin.top) / 2.25)
+                .attr("y", margin.left / 2)
+                .text("GPA");
+
+            // sclaes x axis for ethical chart
+            const scaleXB = d3.scaleLinear()
+                .domain([2, 10])
+                .range([0, width]);
+
+            // sclaes y axis for ethical chart
+            const scaleYB = d3.scaleLinear()
+                .domain([0, 4])
+                .range([height, 0]);
+
+            // creates the x axis for the ethical chart
+            chartB.append("g")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(scaleXB));
+
+            // creates the y axis for the ethical chart
+            chartB.append("g")
+                .call(d3.axisLeft(scaleYB));
+
+            // creates the line for the ethical chart
+            const lineB = d3.line()
+                .x(d => scaleXB(d.screenTime))
+                .y(d => scaleYB(d.gpa));
+
+            // adds the line to the ethical chart
+            chartB.append("path")
+                .datum(sorted)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("d", lineB);
+
+            // adds the points to the ethical chart
+            chartB.selectAll("circle")
+                .data(sorted)
+                .enter()
+                .append("circle")
+                .attr("cx", d => scaleXB(d.screenTime))
+                .attr("cy", d => scaleYB(d.gpa))
+                .attr("r", 4)
+                .attr("fill", "steelblue");
+
+
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            // creates new container for the next two charts
+            const row = d3.select("#chart-container");
+            const panelC = row.append("div");
+            const panelD = row.append("div");
+
+            //          DECEPTIVE CHART 
+            const svgC = panelC
+                .append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            const chartC = svgC.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // title
+            svgC.append("text")
+                .attr("x", svgWidth / 2)
+                .attr("y", 30)
+                .attr("text-anchor", "middle")
+                .style("font-size", "20px")
+                .text("Deceptive: Screen Time & GPA For Each Student");
+
+            // x-axis label
+            svgC.append("text")
+                .attr("x", (svgWidth + margin.left) / 2.75)
+                .attr("y", svgHeight - 15)
+                .attr("text-anchor", "middle")
+                .text("Student ID");    
+
+            // y-axis label
+            svgC.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -(svgHeight + margin.top) / 2.25)
+                .attr("y", margin.left / 2)
+                .attr("text-anchor", "middle")
+                .style("fill", "steelblue")
+                .text("Screen time (hours)");
+
+            // y-axis label for GPA on right side of chart
+            svgC.append("text")
+                .attr("x", svgWidth - 50)
+                .attr("y", (margin.top + height) / 2)
+                .attr("text-anchor", "middle")
+                .attr("transform", `rotate(-90,${svgWidth - 50},${margin.top + height / 2})`)
+                .style("fill", "crimson")
+                .text("GPA");
+
+            // scales x axis for deceptive chart
+            const scaleXC = d3.scaleBand()
+                .domain(data.map(d => d.student_id))
+                .range([0, width]);
+
+            // calculates the center of the x axis
+            const xCenter = (d) => scaleXC(d.student_id) + scaleXC.bandwidth() / 2;
+
+            // scales y axis for the left side
+            const scaleYLeft = d3.scaleLinear()
+                .domain([1, 11])
+                .range([height, 0]);
+
+            // scales y axis for the right side
+            const scaleYRight = d3.scaleLinear()
+                .domain([3.05, 3.25])
+                .range([height, 0]);
+
+            // creates the x axis for the deceptive chart
+            chartC.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(scaleXC));
+
+            // creates the y axis for the deceptive chart
+            chartC.append("g")
+                .call(d3.axisLeft(scaleYLeft));
+
+            // creates the y axis for the GPA on the right side of the chart
+            chartC.append("g")
+                .attr("transform", `translate(${width},0)`)
+                .call(d3.axisRight(scaleYRight));
+
+            // creates the line for the deceptive chart
+            const lineScreenC = d3.line()
+                .x((d) => xCenter(d))
+                .y((d) => scaleYLeft(d.screenTime));
+
+            // creates the line for the GPA on the right side of the chart
+            const lineGpaC = d3.line()
+                .x((d) => xCenter(d))
+                .y((d) => scaleYRight(d.gpa));
+
+            // adds the line for the screen time to the deceptive chart
+            chartC.append("path")
+                .datum(data)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("d", lineScreenC);
+
+            // adds the line for the GPA to the deceptive chart
+            chartC.append("path")
+                .datum(data)
+                .attr("fill", "none")
+                .attr("stroke", "red")
+                .attr("d", lineGpaC);
+
+            // adds the points for the screen time to the deceptive chart
+            chartC.selectAll(".dot-screen")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("cx", (d) => xCenter(d))
+                .attr("cy", (d) => scaleYLeft(d.screenTime))
+                .attr("r", 4)
+                .attr("fill", "steelblue");
+
+            // adds the points for the GPA to the deceptive chart
+            chartC.selectAll(".dot-gpa")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("cx", (d) => xCenter(d))
+                .attr("cy", (d) => scaleYRight(d.gpa))
+                .attr("r", 4)
+                .attr("fill", "crimson");
+
+
+            //          ETHICAL CHART 
+            const svgD = panelD.append("svg")
+                .attr("width", svgWidth)
+                .attr("height", svgHeight);
+
+            const chartD = svgD.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // title
+            svgD.append("text")
+                .attr("x", svgWidth / 2)
+                .attr("y", 30)
+                .attr("text-anchor", "middle")
+                .style("font-size", "20px")
+                .text("Ethical: Screen Time & GPA — Shared Scale, True Relationship");
+
+            // x-axis label
+            svgD.append("text")
+                .attr("x", (svgWidth + margin.left) / 2.65)
+                .attr("y", svgHeight - 15)
+                .attr("text-anchor", "middle")
+                .text("Student ID");
+
+            // y-axis label
+            svgD.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -(svgHeight + margin.top) / 2.25)
+                .attr("y", margin.left / 2)
+                .attr("text-anchor", "middle")
+                .text("Value (shared scale)");
+
+            // creates the x axis for the ethical chart
+            chartD.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(scaleXC));
+
+            // scales y axis for the shared scale
+            const scaleYD = d3.scaleLinear()
+                .domain([2, 11])
+                .range([height, 0]);
+
+            // creates the y axis for the ethical chart
+            chartD.append("g")
+                .call(d3.axisLeft(scaleYD));
+
+            // creates the line for the screen time
+            const lineScreenD = d3.line()
+                .x((d) => xCenter(d))
+                .y((d) => scaleYD(d.screenTime));
+
+            // creates the line for the GPA
+            const lineGpaD = d3.line()
+                .x((d) => xCenter(d))
+                .y((d) => scaleYD(d.gpa));
+
+            // adds the line for the screen time
+            chartD.append("path")
+                .datum(data)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("d", lineScreenD);
+
+            // adds the line for the GPA
+            chartD.append("path")
+                .datum(data)
+                .attr("fill", "none")
+                .attr("stroke", "crimson")
+                .attr("d", lineGpaD);
+
+            // adds the points for the screen time
+            chartD.selectAll(".dot-screen")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("cx", (d) => xCenter(d))
+                .attr("cy", (d) => scaleYD(d.screenTime))
+                .attr("r", 4)
+                .attr("fill", "steelblue");
+
+            // adds the points for the GPA
+            chartD.selectAll(".dot-gpa")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("cx", (d) => xCenter(d))
+                .attr("cy", (d) => scaleYD(d.gpa))
+                .attr("r", 4)
+                .attr("fill", "crimson");
+        });
+    </script>
+</body>
+
+</html>
